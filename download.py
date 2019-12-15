@@ -76,11 +76,14 @@ def download_naip(geometries, directory, overwrite):
         urls.extend(get_urls(geometry.bounds))
 
     local_paths = []
+    counter = 1
     for url in urls:
-        print(f'Downloading url: {url}')
+        print(f'Downloading file {counter} of {len(urls)}')
         local_path = download_url(url, directory, overwrite=overwrite)
         if local_path is not None:
             local_paths.append(local_path)
+
+        counter += 1
 
     return local_paths
 
