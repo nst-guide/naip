@@ -1,0 +1,6 @@
+click
+dateutil
+geopandas
+numpy
+requests
+shapely

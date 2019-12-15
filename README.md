@@ -1,6 +1,6 @@
-# Hillshade
+# NAIP
 
-Generate high-resolution tiled imagery from USGS/USDA NAIP data
+Generate high-resolution tiled imagery from USDA NAIP data
 
 ## Overview
 
@@ -89,38 +89,26 @@ zoom 11 and 1 at zoom 15, with a gradual ramp in between.
 }
 ```
 
-----------
-
-This hasn't been updated to refer to NAIP yet...
-
 ## Installation
 
 Clone the repository:
 
 ```
-git clone https://github.com/nst-guide/hillshade
-cd hillshade
+git clone https://github.com/nst-guide/naip
+cd naip
 ```
 
 This is written to work with Python >= 3.6. To install dependencies:
 
 ```
-pip install click requests
+pip install -r requirements.txt
 ```
 
-This also has a dependency on GDAL. I find that the easiest way of installing
-GDAL is through Conda:
-
+This also has dependencies on some C/C++ libraries. If you have issues
+installing with pip, try Conda:
 ```
-conda create -n hillshade python gdal -c conda-forge
-source activate hillshade
-pip install click requests
-```
-
-You can also install GDAL via Homebrew on MacOS
-
-```
-brew install gdal
+conda env create -f environment.yml
+source activate naip
 ```
 
 ## Code Overview
@@ -133,55 +121,37 @@ Downloads USGS elevation data for a given bounding box.
 > python download.py --help
 Usage: download.py [OPTIONS]
 
+  Download raw NAIP imagery for given geometry
+
 Options:
   --bbox TEXT  Bounding box to download data for. Should be west, south, east,
-               north.  [required]
+               north.
+  --file FILE  Geospatial file with geometry to download data for. Will
+               download all image tiles that intersect this geometry. Must be
+               a file format that GeoPandas can read.
   --overwrite  Re-download and overwrite existing files.
-  --high_res   Download high-res 1/3 arc-second DEM.
   --help       Show this message and exit.
 ```
 
-This script calls the [National Map API](https://viewer.nationalmap.gov/tnmaccess/api/index)
-and finds all the 1x1 degree elevation products that intersect the given bounding
-box. Right now, this uses 1 arc-second data, which has about a 30 meter
-resolution. It would also be possible to use the 1/3 arc-second seamless data,
-which is the best seamless resolution available for the continental US, but
-those file sizes are 9x bigger, so for now I'm just going to generate from the 1
-arc-second.
+This script calls the [National Map
+API](https://viewer.nationalmap.gov/tnmaccess/api/index) and finds all the
+3.75'x3.75' NAIP imagery files that intersect the given bounding box or
+geometry. By default, it only downloads the most recent image, if more than one
+exist.
 
 The script then downloads each of these files to `data/raw/`. By default,
 it doesn't re-download and overwrite a file that already exists. If you wish to
 overwrite an existing file, use `--overwrite`.
 
-#### `unzip.sh`
+#### `gdal`
 
-Takes downloaded DEM data from `data/raw/`, unzips it, and places it in `data/unzipped/`.
-
-#### `gdaldem`
-
-Use `gdalbuildvrt` to generate a virtual dataset of all DEM tiles, `gdaldem` to
-generate a hillshade, and `gdal2tiles` to cut the output raster into map tiles.
-
-`gdaldem` options:
-
--   `-multidirectional`:
-
-    > multidirectional shading, a combination of hillshading illuminated from 225 deg, 270 deg, 315 deg, and 360 deg azimuth.
-
--   `s` (scale):
-
-    > Ratio of vertical units to horizontal. If the horizontal unit of the
-    > source DEM is degrees (e.g Lat/Long WGS84 projection), you can use
-    > scale=111120 if the vertical units are meters (or scale=370400 if they are
-    > in feet)
-
-    Note that this won't be exact, since those scale conversions are only really
-    valid at the equator, but I had issues warping the VRT to a projection in
-    meters, and it's good enough for now.
+Use `gdalbuildvrt` to generate a virtual dataset of all image tiles and
+`gdal2tiles` to cut the output raster into map tiles.
 
 `gdal2tiles.py` options:
 
--   `--processes`: number of individual processes to use for generating the base tiles. Change this to a suitable number for your computer.
+-   `--processes`: number of individual processes to use for generating the base
+    tiles. Change this to a suitable number for your computer.
 -   I also use my forked copy of `gdal2tiles.py` in order to generate high-res retina tiles
 
 ## Usage
@@ -191,72 +161,17 @@ and optionally download my fork of `gdal2tiles` which allows for creating
 512x512 pngs.
 
 ```bash
-# Download for Washington state
-python download.py --bbox="-126.7423, 45.54326, -116.9145, 49.00708"
-# Or, download high-resolution 1/3 arc-second tiles
-python download.py --bbox="-126.7423, 45.54326, -116.9145, 49.00708"
-bash unzip.sh
-# Create seamless DEM:
-gdalbuildvrt data/dem.vrt data/unzipped/*.img
-gdalbuildvrt data/dem_hr.vrt data/unzipped_hr/*.img
+# Download for some geometry
+python download.py --file example.geojson
+
+# Create virtual raster:
+gdalbuildvrt data/naip.vrt data/raw/*.jp2
+
 # Download my fork of gdal2tiles.py
 # I use my own gdal2tiles.py fork for retina 2x 512x512 tiles
 git clone https://github.com/nst-guide/gdal2tiles
 cp gdal2tiles/gdal2tiles.py ./
+
+# Generate tiled imagery
+./gdal2tiles.py --processes 10 data/naip.vrt data/naip_tiles
 ```
-
-**Terrain RGB:**
-
-```bash
-# Create a new VRT specifically for the terrain RGB tiles, manually setting the
-# nodata value to be -9999
-gdalbuildvrt -vrtnodata -9999 data/dem_hr_9999.vrt data/unzipped_hr/*.img
-gdalwarp -r cubicspline -s_srs EPSG:4269 -t_srs EPSG:3857 -dstnodata 0 -co COMPRESS=DEFLATE data/dem_hr_9999.vrt data/dem_hr_9999_epsg3857.vrt
-rio rgbify -b -10000 -i 0.1 --min-z 6 --max-z 13 -j 15 --format webp data/dem_hr_9999_epsg3857.vrt data/terrain_webp.mbtiles
-rio rgbify -b -10000 -i 0.1 --min-z 6 --max-z 13 -j 15 --format png data/dem_hr_9999_epsg3857.vrt data/terrain_png.mbtiles
-mb-util data/terrain_webp.mbtiles data/terrain_webp
-mb-util data/terrain_png.mbtiles data/terrain_png
-```
-
-**Hillshade:**
-
-```bash
-# Generate hillshade
-gdaldem hillshade -multidirectional -s 111120 data/dem.vrt data/hillshade.tif
-gdaldem hillshade -igor -compute_edges -s 111120 data/dem_hr.vrt data/hillshade_igor_hr.tif
-
-# Cut into tiles
-./gdal2tiles.py --processes 10 data/hillshade.tif data/hillshade_tiles
-./gdal2tiles.py --processes 10 data/hillshade_igor_hr.tif data/hillshade_igor_hr_tiles
-```
-
-**Slope angle shading:**
-
-Note, the `data/slope_hr.tif` file in this example, comprised of the bounding boxes at the bottom, is a 70GB file itself. Make sure you have enough
-
-```bash
-# Generate slope
-gdaldem slope -s 111120 data/dem.vrt data/slope.tif
-gdaldem slope -s 111120 data/dem_hr.vrt data/slope_hr.tif
-
-# Generate color ramp
-gdaldem color-relief -alpha -nearest_color_entry data/slope.tif color_relief.txt data/color_relief.tif
-gdaldem color-relief -alpha -nearest_color_entry data/slope_hr.tif color_relief.txt data/color_relief_hr.tif
-
-# Cut into tiles
-./gdal2tiles.py --processes 10 data/color_relief.tif data/color_relief_tiles
-./gdal2tiles.py --processes 10 data/color_relief_hr.tif data/color_relief_hr_tiles
-```
-
-### Bboxes used:
-
-For personal reference:
-
-- `-120.8263,32.7254,-116.0826,34.793`
-- `-122.4592,35.0792,-117.0546,36.9406`
-- `-123.4315,37.0927,-118.0767,37.966`
-- `-124.1702,38.0697,-118.5426,38.9483`
-- `-124.1702,38.0697,-119.0635,38.9483`
-- `-124.5493,39.0475,-120.0647,42.0535`
-- `-124.6791,42.0214,-117.0555,46.3334`
-- `-124.9103,46.0184,-117.0593,49.0281`

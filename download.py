@@ -35,6 +35,8 @@ from grid import get_cells
     default=False,
     help="Re-download and overwrite existing files.")
 def main(bbox, file, overwrite):
+    """Download raw NAIP imagery for given geometry
+    """
     if (bbox is None) and (file is None):
         raise ValueError('Either bbox or file must be provided')
 

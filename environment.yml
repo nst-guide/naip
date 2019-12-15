@@ -1,0 +1,10 @@
+name: naip
+channels:
+  - conda-forge
+dependencies:
+  - click
+  - dateutil
+  - geopandas
+  - numpy
+  - requests
+  - shapely
