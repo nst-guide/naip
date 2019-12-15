@@ -1,53 +1,79 @@
-import re
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
 import click
+import geopandas as gpd
 import requests
+from dateutil.parser import parse as date_parse
+from shapely.geometry import box
+
+from grid import get_cells
 
 
 @click.command()
 @click.option(
     '--bbox',
-    required=True,
+    required=False,
+    default=None,
     type=str,
     help='Bounding box to download data for. Should be west, south, east, north.'
+)
+@click.option(
+    '--file',
+    required=False,
+    type=click.Path(
+        exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    default=None,
+    help=
+    'Geospatial file with geometry to download data for. Will download all image tiles that intersect this geometry. Must be a file format that GeoPandas can read.'
 )
 @click.option(
     '--overwrite',
     is_flag=True,
     default=False,
     help="Re-download and overwrite existing files.")
-@click.option(
-    '--high_res',
-    is_flag=True,
-    default=False,
-    help="Download high-res 1/3 arc-second DEM.")
-def main(bbox, overwrite, high_res):
-    bbox = tuple(map(float, re.split(r'[, ]+', bbox)))
-    print(f'Downloading Digital Elevation Models for bbox: {bbox}')
-    if high_res:
-        download_dir = Path('data/raw_hr')
-    else:
-        download_dir = Path('data/raw')
+def main(bbox, file, overwrite):
+    if (bbox is None) and (file is None):
+        raise ValueError('Either bbox or file must be provided')
+
+    if (bbox is not None) and (file is not None):
+        raise ValueError('Either bbox or file must be provided')
+
+    geometries = None
+    if bbox:
+        geometries = [box(bbox)]
+
+    if file:
+        gdf = gpd.read_file(file).to_crs(epsg=4326)
+        geometries = list(get_cells(gdf.unary_union, cell_size=0.0625))
+
+    if geometries is None:
+        raise ValueError('Error while computing geometries')
+
+    print('Downloading NAIP imagery for geometries:')
+    for geometry in geometries:
+        print(geometries[0].bounds)
+
+    download_dir = Path('data/raw')
     download_dir.mkdir(parents=True, exist_ok=True)
-    local_paths = download_dem(
-        bbox, directory=download_dir, overwrite=overwrite, high_res=high_res)
+    local_paths = download_naip(
+        geometries, directory=download_dir, overwrite=overwrite)
     with open('paths.txt', 'w') as f:
         f.writelines(_paths_to_str(local_paths))
 
 
-def download_dem(bbox, directory, overwrite, high_res):
+def download_naip(geometries, directory, overwrite):
     """
     Args:
-        - bbox (tuple): bounding box (west, south, east, north)
+        - geometries (list): list of bounding boxes (as shapely objects)
         - directory (pathlib.Path): directory to download files to
         - overwrite (bool): whether to re-download and overwrite existing files
-        - high_res (bool): If True, downloads high-res 1/3 arc-second DEM
     """
-    urls = get_urls(bbox, high_res)
+    urls = []
+    for geometry in geometries:
+        urls.extend(get_urls(geometry.bounds))
 
     local_paths = []
     for url in urls:
@@ -59,20 +85,16 @@ def download_dem(bbox, directory, overwrite, high_res):
     return local_paths
 
 
-def get_urls(bbox, high_res):
+def get_urls(bbox):
     """
     Args:
         - bbox (tuple): bounding box (west, south, east, north)
         - high_res (bool): If True, downloads high-res 1/3 arc-second DEM
     """
     url = 'https://viewer.nationalmap.gov/tnmaccess/api/products'
-    if high_res:
-        product = 'National Elevation Dataset (NED) 1/3 arc-second'
-    else:
-        product = 'National Elevation Dataset (NED) 1 arc-second'
-
-    extent = '1 x 1 degree'
-    fmt = 'IMG'
+    product = 'USDA National Agriculture Imagery Program (NAIP)'
+    extent = '3.75 x 3.75 minute'
+    fmt = 'JPEG2000'
 
     params = {
         'datasets': product,
@@ -87,7 +109,7 @@ def get_urls(bbox, high_res):
 
     # If I don't need to page for more results, return
     if len(res['items']) == res['total']:
-        return [x['downloadURL'] for x in res['items'] if x['bestFitIndex'] > 0]
+        return select_results(res)
 
     # Otherwise, need to page
     all_results = [*res['items']]
@@ -100,7 +122,52 @@ def get_urls(bbox, high_res):
         all_results.extend(res['items'])
 
     # Keep all results with best fit index >0
-    return [x['downloadURL'] for x in all_results if x['bestFitIndex'] > 0]
+    return select_results(all_results)
+
+
+def select_results(results):
+    """Select relevant images from results
+
+    Selects most recent image for location, and results with positive fit index.
+    """
+    # Select results with positive bestFitIndex
+    results = [x for x in results['items'] if x['bestFitIndex'] > 0]
+
+    # counter_dict schema:
+    # counter_dict = {
+    #     bounds: {
+    #         'dateCreated': date,
+    #         'downloadURL'
+    #     }
+    # }
+    counter_dict = {}
+    for result in results:
+        bounds = result_to_bounds(result)
+
+        # does something already exist with these bounds?
+        existing = counter_dict.get(bounds)
+
+        # If exists, check if newer
+        if existing is not None:
+            existing_date = existing['dateCreated']
+            this_date = date_parse(result['dateCreated'])
+            if this_date < existing_date:
+                continue
+
+        # Doesn't exist yet or is newer, so add to dict
+        counter_dict[bounds] = {
+            'dateCreated': date_parse(result['dateCreated']),
+            'downloadURL': result['downloadURL']}
+
+    return [x['downloadURL'] for x in counter_dict.values()]
+
+
+def result_to_bounds(res_item):
+    minx = str(res_item['boundingBox']['minX'])
+    maxx = str(res_item['boundingBox']['maxX'])
+    miny = str(res_item['boundingBox']['minY'])
+    maxy = str(res_item['boundingBox']['maxY'])
+    return ','.join((minx, miny, maxx, maxy))
 
 
 def download_url(url, directory, overwrite=False):
