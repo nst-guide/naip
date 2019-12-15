@@ -1,84 +1,29 @@
 # Hillshade
 
-Generate hillshade and slope angle shading from USGS data.
+Generate high-resolution tiled imagery from USGS/USDA NAIP data
 
 ## Overview
 
 I use [OpenMapTiles](https://github.com/openmaptiles/openmaptiles) to create
-self-hosted vector map tiles. However, I'm interested in building a topographic
-outdoors-oriented map. A hillshade layer really helps understand the terrain, and just
-looks pretty. A slope-angle shading layer is very helpful when recreating in the
-outdoors for understanding where is more or less safe to travel.
+self-hosted vector map tiles. However, that doesn't provide aerial imagery.
 
 ### Source data
 
-Since my map is focused on the continental United States, I use data from the US
-Geological Survey (USGS), which is more accurate but limited to the US. If
-you're interested in creating a map with international scope, check out
-[30-meter SRTM data](http://dwtkns.com/srtm30m/), which is generally the most
-accurate worldwide source available.
+The US Department of Agriculture (USDA) captures high-resolution aerial imagery
+for the continental US. The USGS's web portal allows for easy downloading of
+NAIP imagery.
 
-Regarding the USGS data, they have a few sources available:
+According to the [NAIP
+website](https://www.fsa.usda.gov/programs-and-services/aerial-photography/imagery-programs/naip-imagery/):
 
-- 1 arc-second seamless DEM. This has ~30m horizontal accuracy, which is
-  accurate enough for many purposes, and gives it the smallest file sizes,
-  making it easy to work with.
-- 1/3 arc-second seamless DEM. This dataset has the best precision available
-  (~10m horizontal accuracy) for a seamless dataset. Note that the file sizes
-  are about 9x bigger than the 1 arc-second data, making each 1x1 degree cell
-  about 450MB unzipped.
-- 1/9 arc-second project-based DEM; 1-meter project-based DEM. These have very
-  high horizontal accuracy, but aren't available for the entire US yet. If you
-  want to use these datasets, go to the [National Map download
-  page](https://viewer.nationalmap.gov/basic/), check "Elevation Products
-  (3DEP)", and then click "Show Availability" under the layer you're interested
-  in, so that you can see if they exist for the area you're interested in.
+> NAIP imagery is acquired at a one-meter ground sample distance (GSD) with a
+> horizontal accuracy that matches within six meters of photo-identifiable
+> ground control points, which are used during image inspection.
 
-For my purposes, I use the 1 arc-second data initially for testing, but then the
-1/3 arc-second data for production use.
-
-### Terrain RGB
-
-Historically, the way to make a hillshade is to generate raster images where each cell stores the level of grayscale to display.
-
-With Mapbox GL, you have a new option: [Terrain RGB
-tiles](https://docs.mapbox.com/help/troubleshooting/access-elevation-data/#mapbox-terrain-rgb).
-Instead of encoding the grayscale in the raster, it encodes the _raw elevation
-value_ in 0.1m increments. This enables a whole host of cool things to do
-client-side, like retrieving elevation for a point, or [generating the
-viewshed](https://github.com/nst-guide/viewshed-js) from a point (a work in
-progress).
-
-I use Terrain RGB tiles in my projects.
-
-#### Terrarium dataset
-
-If you want to use Terrain RGB tiles, but don't want to create them yourself,
-it's also currently possible to use the publicly-hosted Terrarium dataset on
-[AWS Public Datasets](https://registry.opendata.aws/terrain-tiles/) for free. It
-isn't even in a requester-pays bucket. I don't know how long this will be
-available for free, so I figured I'd just generate my own.
-
-If you want to go that route, set this as your source in your `style.json`:
-
-```json
-"terrarium": {
-  "type": "raster-dem",
-  "tiles": [
-  	"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
-  ],
-  "minzoom": 0,
-  "maxzoom": 15,
-  "encoding": "terrarium"
-}
-```
-
-Note that I believe the Terrarium dataset uses a different encoding than
-Mapbox's RGB tiles.
 
 ### Integration with `style.json`
 
-The style JSON spec tells Mapbox GL how to style your map. Add the hillshade
+The style JSON spec tells Mapbox GL how to style your map. Add the raster imagery
 tiles as a source to overlay them with the other sources.
 
 Within `sources`, each object key defines the name by which the later parts of
@@ -91,19 +36,10 @@ raster layer and the terrain RGB layer.
     "type": "vector",
     "url": "https://api.maptiler.com/tiles/v3/tiles.json?key={key}"
   },
-  "hillshade": {
+  "naip": {
     "type": "raster",
     "url": "https://example.com/url/to/tile.json",
   	"tileSize": 512
-  },
-  "terrain-rgb": {
-    "type": "raster-dem",
-    "tiles": [
-      "https://example.com/url/to/tiles/{z}/{x}/{y}.png"
-    ],
-    "minzoom": 0,
-    "maxzoom": 12,
-    "encoding": "mapbox"
   }
 }
 ```
@@ -113,36 +49,49 @@ Where the `tile.json` for a raster layer should be something like:
 ```json
 {
     "attribution": "<a href=\"https://www.usgs.gov/\" target=\"_blank\">© USGS</a>",
-    "description": "Hillshade generated from 1 arc-second USGS DEM",
+    "description": "NAIP Imagery",
     "format": "png",
-    "id": "hillshade",
-    "maxzoom": 16,
-    "minzoom": 0,
-    "name": "hillshade",
+    "id": "naip",
+    "maxzoom": 15,
+    "minzoom": 11,
+    "name": "naip",
     "scheme": "tms",
     "tiles": ["https://example.com/url/to/tiles/{z}/{x}/{y}.png"],
     "version": "2.2.0"
 }
 ```
 
-Later in the style JSON, refer to the hillshade to style it. Example for terrain
-RGB:
+Later in the style JSON, refer to the raster to style it. This example shows the
+raster layer between zooms 11 and 15 (inclusive), and sets the opacity to 0.2 at
+zoom 11 and 1 at zoom 15, with a gradual ramp in between.
 ```json
 {
-  "id": "terrain-rgb",
-  "source": "terrain-rgb",
-  "type": "hillshade",
-  "minzoom": 0,
+  "id": "naip",
+  "type": "raster",
+  "source": "naip",
+  "minzoom": 11,
+  "maxzoom": 15,
   "paint": {
-    "hillshade-shadow-color": "hsl(39, 21%, 33%)",
-    "hillshade-illumination-direction": 315,
-    "hillshade-exaggeration": 0.8
-  },
-  "layout": {
-    "visibility": "visible"
+    "raster-opacity": {
+      "base": 1.5,
+      "stops": [
+        [
+          11,
+          0.2
+        ],
+        [
+          15,
+          1
+        ]
+      ]
+    }
   }
 }
 ```
+
+----------
+
+This hasn't been updated to refer to NAIP yet...
 
 ## Installation
 
