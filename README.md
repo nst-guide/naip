@@ -124,13 +124,21 @@ Usage: download.py [OPTIONS]
   Download raw NAIP imagery for given geometry
 
 Options:
-  --bbox TEXT  Bounding box to download data for. Should be west, south, east,
-               north.
-  --file FILE  Geospatial file with geometry to download data for. Will
-               download all image tiles that intersect this geometry. Must be
-               a file format that GeoPandas can read.
-  --overwrite  Re-download and overwrite existing files.
-  --help       Show this message and exit.
+  --bbox TEXT                     Bounding box to download data for. Should be
+                                  west, south, east, north.
+  --file FILE                     Geospatial file with geometry to download
+                                  data for. Will download all image tiles that
+                                  intersect this geometry. Must be a file
+                                  format that GeoPandas can read.
+  -b, --buffer-dist FLOAT         Buffer to use around provided geometry. Only
+                                  used with --file argument.
+  --buffer-unit [mile|meter|kilometer]
+                                  Units for buffer.  [default: mile]
+  --buffer-projection INTEGER     EPSG code for projection used when creating
+                                  buffer. Coordinates must be in meters.
+                                  [default: 3488]
+  --overwrite                     Re-download and overwrite existing files.
+  --help                          Show this message and exit.
 ```
 
 This script calls the [National Map

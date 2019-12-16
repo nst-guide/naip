@@ -30,11 +30,36 @@ from grid import get_cells
     'Geospatial file with geometry to download data for. Will download all image tiles that intersect this geometry. Must be a file format that GeoPandas can read.'
 )
 @click.option(
+    '-b',
+    '--buffer-dist',
+    required=False,
+    type=float,
+    default=None,
+    show_default=True,
+    help='Buffer to use around provided geometry. Only used with --file argument.'
+)
+@click.option(
+    '--buffer-unit',
+    required=False,
+    show_default=True,
+    type=click.Choice(['mile', 'meter', 'kilometer'], case_sensitive=False),
+    default='mile',
+    help='Units for buffer.')
+@click.option(
+    '--buffer-projection',
+    required=False,
+    show_default=True,
+    type=int,
+    default=3488,
+    help=
+    'EPSG code for projection used when creating buffer. Coordinates must be in meters.'
+)
+@click.option(
     '--overwrite',
     is_flag=True,
     default=False,
     help="Re-download and overwrite existing files.")
-def main(bbox, file, overwrite):
+def main(bbox, file, buffer_dist, buffer_unit, buffer_projection, overwrite):
     """Download raw NAIP imagery for given geometry
     """
     if (bbox is None) and (file is None):
@@ -49,6 +74,16 @@ def main(bbox, file, overwrite):
 
     if file:
         gdf = gpd.read_file(file).to_crs(epsg=4326)
+
+        # Create buffer if arg is provided
+        if buffer_dist is not None:
+            from geom import buffer
+            gdf = buffer(
+                gdf,
+                distance=buffer_dist,
+                unit=buffer_unit,
+                epsg=buffer_projection)
+
         geometries = list(get_cells(gdf.unary_union, cell_size=0.0625))
 
     if geometries is None:

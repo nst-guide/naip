@@ -6,5 +6,6 @@ dependencies:
   - dateutil
   - geopandas
   - numpy
+  - pint
   - requests
   - shapely
