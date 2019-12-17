@@ -183,5 +183,87 @@ cp gdal2tiles/gdal2tiles.py ./
 
 # Generate tiled imagery
 # --exclude excludes transparent tiles from output tileset
+# You may want to set max zoom level 15
 ./gdal2tiles.py --processes 10 --exclude data/naip.vrt data/naip_tiles
+```
+
+### Compression
+
+Running this for a .5 mile buffer for the entire Pacific Crest Trail, with
+512x512 pixel tiles and a max zoom of 16 generated ~60GB of png files. Around
+~45GB of these tiles are in just zoom level 16, and while I'll probably
+set a max zoom of 15 in the future, ~15GB is still more than I want to serve.
+
+Note that these CLI commands worked on macOS, and some might need different syntax on Linux.
+
+#### WebP
+
+Google's webp format is a great compressor of png images. Running the `cwebp`
+cli (you can download from Google's site or through homebrew ) and setting the
+quality to 80/100 reduces file size by about 85%
+```
+> cwebp 10299.png -q 80 -o 10299.webp
+```
+
+By default this is _lossy_ compression. You can set `-lossless` if you'd like,
+but lossy is fine for my needs.
+
+The docs for the `-q` option say:
+
+> Specify the compression factor for RGB channels between 0 and 100. The default is 75.
+>
+> In case of lossy compression (default), a small factor produces a smaller file
+> with lower quality. Best quality is achieved by using a value of 100.
+>
+> In case of lossless compression (specified by the -lossless option), a small
+> factor enables faster compression speed, but produces a larger file. Maximum
+> compression is achieved by using a value of 100.
+
+I think this is really confusing because a higher `-q` value is less compressed
+when running lossy and more compressed when running lossless!
+
+To create a full hierarchy of webp images:
+```bash
+cd data/naip_tiles
+for f in */*/*.png; do mkdir -p ../naip_tiles_webp/$(dirname $f); cwebp $f -q 80 -o ../naip_tiles_webp/$f ; done
+```
+
+Unfortunately, webp isn't supported everywhere, namely on older browsers and on
+all iOS browsers.
+
+#### Lossy PNG
+
+Because WebP images aren't supported on all devices, I also need to serve a PNG
+layer. Unlike the [terrain-rgb elevation
+layer](https://github.com/nst-guide/hillshade), for which lossy compression
+would erase all meaning of the encoded elevation values, for regular images
+lossy compression won't make much of a visual difference.
+
+From limited searching, the best open source, command line PNG compressor seems
+to be [`pngquant`](https://pngquant.org/). This creates PNG images that can be
+displayed on any device. You can install with `brew install pngquant`.
+
+In order to create a directory of compressed images:
+```bash
+cd data/naip_tiles
+find . -name '*.png' -print0 | xargs -0 -P8 -L1 pngquant --ext -comp.png --quality=70-80
+```
+
+Setting quality to `70-80` appears to create files that are about 25% of the
+original size.
+
+I couldn't figure out an easy way to write the output png files to a new
+directory. By default they're written in the same directory as the original
+file, with an added extension.
+
+```bash
+# in data/naip_tiles already
+mkdir ../naip_tiles_png
+# First move all tiles with extension -comp.png to the new directory
+# Take out --remove-source-files if you want to copy, not move the files
+# I use rsync because I couldn't figure out an easy way with `mv` to move while
+# keeping the directory structure.
+rsync -a --remove-source-files --include "*/" --include="*-comp.png" --exclude="*" . ../naip_tiles_png/
+# Then rename all of the files, taking off the -comp suffix
+find . -type f -name "*-comp.png" -exec rename -s '-comp.png' '.png' {} +
 ```
