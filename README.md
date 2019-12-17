@@ -198,6 +198,9 @@ Note that these CLI commands worked on macOS, and some might need different synt
 
 #### WebP
 
+**Note**: It appears from limited inspection that Mapbox GL JS shows WebP images
+slightly pixelated? See [#2](https://github.com/nst-guide/naip/issues/2).
+
 Google's webp format is a great compressor of png images. Running the `cwebp`
 cli (you can download from Google's site or through homebrew ) and setting the
 quality to 80/100 reduces file size by about 85%
