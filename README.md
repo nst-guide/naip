@@ -173,8 +173,10 @@ and optionally download my fork of `gdal2tiles` which allows for creating
 python download.py --file example.geojson
 
 # Create virtual raster:
-# Use -srcnodata 0 so that areas without an image are transparent
-gdalbuildvrt -srcnodata 0 data/naip.vrt data/raw/*.jp2
+# The -b flags take each of the RGB bands at full opacity.
+# The -addalpha sets areas with no source raster as transparent.
+# See https://github.com/nst-guide/naip/issues/1
+gdalbuildvrt -b 1 -b 2 -b 3 -addalpha data/naip.vrt data/raw/*.jp2
 
 # Download my fork of gdal2tiles.py
 # I use my own gdal2tiles.py fork for retina 2x 512x512 tiles
