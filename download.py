@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlparse
@@ -70,7 +71,8 @@ def main(bbox, file, buffer_dist, buffer_unit, buffer_projection, overwrite):
 
     geometries = None
     if bbox:
-        geometries = [box(bbox)]
+        bbox = tuple(map(float, re.split(r'[, ]+', bbox)))
+        geometries = [box(*bbox)]
 
     if file:
         gdf = gpd.read_file(file).to_crs(epsg=4326)
@@ -116,6 +118,7 @@ def download_naip(geometries, directory, overwrite):
     counter = 1
     for url in urls:
         print(f'Downloading file {counter} of {len(urls)}')
+        print(url)
         local_path = download_url(url, directory, overwrite=overwrite)
         if local_path is not None:
             local_paths.append(local_path)
