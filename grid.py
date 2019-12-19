@@ -5,10 +5,9 @@ NOTE: this is taken and simplified from nst-guide/create-database/grid.py:
 https://github.com/nst-guide/create-database/blob/master/code/grid.py
 """
 from math import ceil, floor
-from typing import Iterable
 
 import numpy as np
-from shapely.geometry import Polygon, box
+from shapely.geometry import box
 
 
 def get_cells(geom, cell_size, offset=0):
@@ -38,20 +37,6 @@ def get_cells(geom, cell_size, offset=0):
     return get_grid_intersections(geom, ll_points, cell_size)
 
 
-def get_centroids(cells: Iterable[Polygon], round_digits=None):
-    """
-    Args:
-        - cells: iterable of cells to get centroids of
-        - round_digits:
-    """
-    for cell in cells:
-        coord = cell.centroid.coords[0]
-        if round_digits is None:
-            yield coord
-        else:
-            yield (round(coord[0], round_digits), round(coord[1], round_digits))
-
-
 def get_ll_points(minx, maxx, miny, maxy, offset, cell_size):
     for x in np.arange(minx - offset, maxx + offset, cell_size):
         for y in np.arange(miny - offset, maxy + offset, cell_size):
@@ -64,22 +49,3 @@ def get_grid_intersections(geom, ll_points, cell_size):
         bbox = box(*ll_point, *ur_point)
         if bbox.intersects(geom):
             yield bbox
-
-
-class LightningGrid:
-    def __init__(self, geom):
-        super(LightningGrid, self).__init__()
-        self.cells = list(get_cells(geom, cell_size=.1, offset=.05))
-        self.centroids = list(get_centroids(self.cells, round_digits=1))
-
-
-class TopoQuadGrid:
-    def __init__(self, geom):
-        super(TopoQuadGrid, self).__init__()
-        self.cells = list(get_cells(geom, cell_size=.125))
-
-
-class USGSElevGrid:
-    def __init__(self, geom):
-        super(USGSElevGrid, self).__init__()
-        self.cells = list(get_cells(geom, cell_size=1))
