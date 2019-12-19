@@ -270,5 +270,29 @@ mkdir ../naip_tiles_png
 # keeping the directory structure.
 rsync -a --remove-source-files --include "*/" --include="*-comp.png" --exclude="*" . ../naip_tiles_png/
 # Then rename all of the files, taking off the -comp suffix
+cd ../naip_tiles_png
 find . -type f -name "*-comp.png" -exec rename -s '-comp.png' '.png' {} +
 ```
+
+When run on Halfmile's PCT track data with a .5 mile buffer (including
+alternates), the resulting data after pngquant compression has file sizes:
+```
+> du -csh * | sort -h
+8.0K	4
+20K	5
+36K	6
+108K	7
+348K	8
+1.2M	9
+4.1M	10
+15M	11
+60M	12
+240M	13
+979M	14
+3.8G	15
+15G	16
+20G	total
+```
+
+I'll probably serve up to zoom 15 through the web browser, and maybe up to zoom
+14 for offline download.
