@@ -1,0 +1,36 @@
+{
+  "version": 8,
+  "name": "NAIP",
+  "metadata": {
+    "maputnik:renderer": "mbgljs"
+  },
+  "sources": {
+    "naip": {
+      "minzoom": 4,
+      "maxzoom": 14,
+      "tileSize": 512,
+      "tiles": [
+        "https://tiles.nst.guide/naip-png/{z}/{x}/{y}.png"
+      ],
+      "type": "raster",
+      "scheme": "tms"
+    }
+  },
+  "sprite": "",
+  "glyphs": "https://orangemug.github.io/font-glyphs/glyphs/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "naip",
+      "type": "raster",
+      "source": "naip",
+      "minzoom": 4,
+      "paint": {
+        "raster-opacity": 1
+      },
+      "layout": {
+        "visibility": "visible"
+      }
+    }
+  ],
+  "id": "contours"
+}
