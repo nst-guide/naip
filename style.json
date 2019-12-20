@@ -7,7 +7,7 @@
   "sources": {
     "naip": {
       "minzoom": 4,
-      "maxzoom": 14,
+      "maxzoom": 16,
       "tileSize": 512,
       "tiles": [
         "https://tiles.nst.guide/naip-png/{z}/{x}/{y}.png"
