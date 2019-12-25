@@ -9,3 +9,4 @@ dependencies:
   - pint
   - requests
   - shapely
+  - tqdm
