@@ -112,7 +112,9 @@ def download_naip(geometries, directory, overwrite):
     """
     urls = []
     for geometry in geometries:
-        urls.extend(get_urls(geometry.bounds))
+        new_urls = get_urls(geometry.bounds)
+        if new_urls is not None:
+            urls.extend(new_urls)
 
     local_paths = []
     counter = 1
@@ -148,7 +150,10 @@ def get_urls(bbox):
         'prodFormats': fmt}
 
     res = requests.get(url, params=params)
-    res = res.json()
+    try:
+        res = res.json()
+    except:
+        return None
 
     # If I don't need to page for more results, return
     if len(res['items']) == res['total']:
