@@ -23,15 +23,6 @@ from grid import get_cells
     help='Bounding box to download data for. Should be west, south, east, north.'
 )
 @click.option(
-    '--file',
-    required=False,
-    type=click.Path(
-        exists=True, file_okay=True, dir_okay=False, resolve_path=True),
-    default=None,
-    help=
-    'Geospatial file with geometry to download data for. Will download all image tiles that intersect this geometry. Must be a file format that GeoPandas can read.'
-)
-@click.option(
     '-b',
     '--buffer-dist',
     required=False,
@@ -61,6 +52,11 @@ from grid import get_cells
     is_flag=True,
     default=False,
     help="Re-download and overwrite existing files.")
+@click.argument(
+    'file',
+    type=click.Path(
+        exists=True, file_okay=True, dir_okay=False, resolve_path=True),
+    nargs=-1)
 def main(bbox, file, buffer_dist, buffer_unit, buffer_projection, overwrite):
     """Download raw NAIP imagery for given geometry
     """
@@ -76,18 +72,21 @@ def main(bbox, file, buffer_dist, buffer_unit, buffer_projection, overwrite):
         geometries = [box(*bbox)]
 
     if file:
-        gdf = gpd.read_file(file).to_crs(epsg=4326)
+        geometries = []
+        for f in file:
+            gdf = gpd.read_file(f).to_crs(epsg=4326)
 
-        # Create buffer if arg is provided
-        if buffer_dist is not None:
-            from geom import buffer
-            gdf = buffer(
-                gdf,
-                distance=buffer_dist,
-                unit=buffer_unit,
-                epsg=buffer_projection)
+            # Create buffer if arg is provided
+            if buffer_dist is not None:
+                from geom import buffer
+                gdf = buffer(
+                    gdf,
+                    distance=buffer_dist,
+                    unit=buffer_unit,
+                    epsg=buffer_projection)
 
-        geometries = list(get_cells(gdf.unary_union, cell_size=0.0625))
+            geometries.extend(
+                list(get_cells(gdf.unary_union, cell_size=0.0625)))
 
     if geometries is None:
         raise ValueError('Error while computing geometries')

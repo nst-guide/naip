@@ -119,17 +119,13 @@ Downloads USGS elevation data for a given bounding box.
 
 ```
 > python download.py --help
-Usage: download.py [OPTIONS]
+Usage: download.py [OPTIONS] [FILE]...
 
   Download raw NAIP imagery for given geometry
 
 Options:
   --bbox TEXT                     Bounding box to download data for. Should be
                                   west, south, east, north.
-  --file FILE                     Geospatial file with geometry to download
-                                  data for. Will download all image tiles that
-                                  intersect this geometry. Must be a file
-                                  format that GeoPandas can read.
   -b, --buffer-dist FLOAT         Buffer to use around provided geometry. Only
                                   used with --file argument.
   --buffer-unit [mile|meter|kilometer]
@@ -170,7 +166,7 @@ and optionally download my fork of `gdal2tiles` which allows for creating
 
 ```bash
 # Download for some geometry
-python download.py --file example.geojson
+python download.py -b 2 example.geojson
 
 # Create virtual raster:
 # The -b flags take each of the RGB bands at full opacity.
