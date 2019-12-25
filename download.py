@@ -60,11 +60,11 @@ from grid import get_cells
 def main(bbox, file, buffer_dist, buffer_unit, buffer_projection, overwrite):
     """Download raw NAIP imagery for given geometry
     """
-    if (bbox is None) and (file is None):
+    if (bbox is None) and (not file):
         raise ValueError('Either bbox or file must be provided')
 
-    if (bbox is not None) and (file is not None):
-        raise ValueError('Either bbox or file must be provided')
+    if (bbox is not None) and (file):
+        raise ValueError("Both bbox and file can't be provided")
 
     geometries = None
     if bbox:
