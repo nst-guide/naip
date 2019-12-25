@@ -94,7 +94,7 @@ def main(bbox, file, buffer_dist, buffer_unit, buffer_projection, overwrite):
 
     print('Downloading NAIP imagery for geometries:')
     for geometry in geometries:
-        print(geometries[0].bounds)
+        print(geometry.bounds)
 
     download_dir = Path('data/raw')
     download_dir.mkdir(parents=True, exist_ok=True)
